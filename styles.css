@@ -17,6 +17,10 @@
   --fill-green: #15803d;
   --fill-green-soft: #e9f7ef;
   --shadow: none;
+  /* Shape scale: containers (cards/panels/table) get --radius-container,
+     controls (buttons/inputs/badges/tiles) get --radius-control. */
+  --radius-container: 12px;
+  --radius-control: 8px;
 }
 
 [data-theme="dark"] {
@@ -89,6 +93,7 @@ body {
 
 .app-header h1 {
   font-size: 1.5rem;
+  letter-spacing: -0.01em;
   margin: 0;
   display: flex;
   align-items: center;
@@ -137,7 +142,7 @@ body {
 .stat-card {
   background: var(--surface-1);
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: var(--radius-container);
   padding: 14px 16px;
   display: flex;
   flex-direction: column;
@@ -157,6 +162,8 @@ body {
 .stat-card .stat-value {
   font-size: 1.7rem;
   font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }
 
 .stat-card.overdue .stat-value { color: var(--fill-red); }
@@ -305,6 +312,7 @@ body {
 .calendar-header .month-label {
   font-size: 1.1rem;
   font-weight: 600;
+  letter-spacing: -0.01em;
   min-width: 190px;
   text-align: center;
 }
@@ -332,7 +340,14 @@ body {
   cursor: pointer;
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: 4px;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .calendar-day.empty {
@@ -406,13 +421,18 @@ body {
 .table-wrap {
   overflow-x: auto;
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: var(--radius-container);
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.88rem;
+}
+
+tbody td:nth-child(4),
+tbody td:nth-child(6) {
+  font-variant-numeric: tabular-nums;
 }
 
 thead th {
@@ -486,7 +506,7 @@ td.name-cell a:hover {
   background: var(--surface-2);
   border: 1px solid var(--border-color);
   color: var(--text-secondary);
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   width: 30px;
   height: 30px;
   cursor: pointer;
@@ -513,7 +533,7 @@ td.name-cell a:hover {
 .form-card {
   background: var(--surface-1);
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: var(--radius-container);
   padding: 20px;
   max-width: 520px;
 }
@@ -622,7 +642,7 @@ td.name-cell a:hover {
 .modal-card {
   background: var(--surface-1);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: var(--radius-container);
   width: 100%;
   max-width: 480px;
   max-height: 80vh;
@@ -655,6 +675,41 @@ td.name-cell a:hover {
 
 .modal-body .modal-section-label:first-child {
   margin-top: 0;
+}
+
+/* Focus visibility (always on, independent of motion preference) */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--fill-accent);
+  outline-offset: 2px;
+}
+
+/* Tactile feedback: gated behind prefers-reduced-motion so it never fires
+   for users who've asked to reduce it. */
+@media (prefers-reduced-motion: no-preference) {
+  .icon-btn,
+  .btn,
+  .tab-btn,
+  .row-actions button,
+  .calendar-day {
+    transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
+  }
+
+  .icon-btn:active,
+  .btn:active,
+  .row-actions button:active {
+    transform: scale(0.96);
+  }
+
+  .calendar-day:not(.empty):active {
+    transform: scale(0.98);
+  }
+
+  tbody tr {
+    transition: background-color 0.12s ease;
+  }
 }
 
 /* Responsive */

@@ -173,7 +173,7 @@ function renderReminders() {
   const fill = (elId, list, status) => {
     const el = document.getElementById(elId);
     if (!list.length) {
-      el.innerHTML = `<div class="empty-state">Nothing here — you're caught up.</div>`;
+      el.innerHTML = `<div class="empty-state">Nothing here. You're all caught up.</div>`;
       return;
     }
     el.innerHTML = list.map(a => reminderItemHtml(a, status)).join('');
@@ -195,8 +195,16 @@ function renderCalendar() {
   document.getElementById('calMonthLabel').textContent = label;
 
   const grid = document.getElementById('calGrid');
+
+  // Preserve keyboard focus across the re-render below (rebuilding innerHTML
+  // destroys the focused node, which would otherwise drop focus to <body>).
+  const focused = document.activeElement;
+  const focusedDate = focused && focused.closest && focused.closest('#calGrid .calendar-day[data-date]')
+    ? focused.dataset.date
+    : null;
+
   const dows = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  let html = dows.map(d => `<div class="dow">${d}</div>`).join('');
+  let html = dows.map(d => `<div class="dow" aria-hidden="true">${d}</div>`).join('');
 
   const firstDay = new Date(calYear, calMonth, 1).getDay();
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
@@ -209,7 +217,7 @@ function renderCalendar() {
   });
 
   for (let i = 0; i < firstDay; i++) {
-    html += `<div class="calendar-day empty"></div>`;
+    html += `<div class="calendar-day empty" aria-hidden="true"></div>`;
   }
 
   for (let day = 1; day <= daysInMonth; day++) {
@@ -223,12 +231,15 @@ function renderCalendar() {
       const cls = status === 'done' ? 'done' : status === 'overdue' ? 'overdue' : status === 'today' || status === 'tomorrow' ? 'tomorrow' : '';
       dots += `<span class="day-dot ${cls}"></span>`;
     });
+    const fullDateLabel = new Date(calYear, calMonth, day).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    const dueLabel = dayAssignments.length ? `${dayAssignments.length} due` : 'nothing due';
     html += `
-      <div class="calendar-day ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}" data-date="${dateStr}">
+      <button type="button" class="calendar-day ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}" data-date="${dateStr}"
+        aria-label="${escapeHtml(fullDateLabel)}, ${dueLabel}" aria-pressed="${isSelected}" ${isToday ? 'aria-current="date"' : ''}>
         <div class="day-num">${day}</div>
         <div class="day-dots">${dots}</div>
         ${dayAssignments.length ? `<div class="day-count">${dayAssignments.length} due</div>` : ''}
-      </div>
+      </button>
     `;
   }
 
@@ -240,8 +251,29 @@ function renderCalendar() {
       renderDayDetail();
     });
   });
+  // Assign (not addEventListener) - grid.innerHTML resets each render but the
+  // grid node itself persists, so addEventListener would stack duplicate handlers.
+  grid.onkeydown = handleCalendarGridKeydown;
+
+  if (focusedDate) {
+    const toFocus = grid.querySelector(`.calendar-day[data-date="${focusedDate}"]`);
+    if (toFocus) toFocus.focus();
+  }
 
   renderDayDetail();
+}
+
+function handleCalendarGridKeydown(e) {
+  const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[e.key];
+  if (!step) return;
+  const current = e.target.closest('.calendar-day[data-date]');
+  if (!current) return;
+  const cells = Array.from(document.querySelectorAll('#calGrid .calendar-day[data-date]'));
+  const nextCell = cells[cells.indexOf(current) + step];
+  if (nextCell) {
+    e.preventDefault();
+    nextCell.focus();
+  }
 }
 
 function renderDayDetail() {
