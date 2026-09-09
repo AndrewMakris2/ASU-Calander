@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Teegan's Assignment Tracker</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.46.0/dist/tabler-icons.min.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="app-header">
+    <div>
+      <h1><i class="ti ti-school"></i> Teegan's Assignment Tracker</h1>
+      <div class="subtitle">ASU · Fall 2026 C-term</div>
+    </div>
+    <div class="header-actions">
+      <button id="notifBtn" class="icon-btn" title="Enable notifications"><i class="ti ti-bell"></i></button>
+      <button id="themeBtn" class="icon-btn" title="Toggle theme"><i class="ti ti-moon"></i></button>
+    </div>
+  </header>
+
+  <section class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label"><i class="ti ti-list-check"></i> Total assignments</div>
+      <div class="stat-value" id="statTotal">0</div>
+    </div>
+    <div class="stat-card overdue">
+      <div class="stat-label"><i class="ti ti-alert-triangle"></i> Overdue</div>
+      <div class="stat-value" id="statOverdue">0</div>
+    </div>
+    <div class="stat-card soon">
+      <div class="stat-label"><i class="ti ti-clock"></i> Due in 3 days</div>
+      <div class="stat-value" id="statSoon">0</div>
+    </div>
+    <div class="stat-card accent">
+      <div class="stat-label"><i class="ti ti-star"></i> Total points</div>
+      <div class="stat-value" id="statPoints">0</div>
+    </div>
+  </section>
+
+  <nav class="tab-bar">
+    <button class="tab-btn active" data-tab="reminders"><i class="ti ti-bell"></i> Reminders</button>
+    <button class="tab-btn" data-tab="calendar"><i class="ti ti-calendar"></i> Calendar</button>
+    <button class="tab-btn" data-tab="all"><i class="ti ti-table"></i> All Assignments</button>
+    <button class="tab-btn" data-tab="add"><i class="ti ti-plus"></i> Add Assignment</button>
+  </nav>
+
+  <!-- Reminders -->
+  <section class="tab-panel active" id="tab-reminders">
+    <div class="reminder-group">
+      <h2 class="section-title"><i class="ti ti-alert-triangle" style="color:var(--fill-red)"></i> Overdue <span class="count-badge" id="countOverdue">0</span></h2>
+      <div class="reminder-list" id="listOverdue"></div>
+    </div>
+    <div class="reminder-group">
+      <h2 class="section-title"><i class="ti ti-clock" style="color:var(--fill-amber)"></i> Due Today <span class="count-badge" id="countToday">0</span></h2>
+      <div class="reminder-list" id="listToday"></div>
+    </div>
+    <div class="reminder-group">
+      <h2 class="section-title"><i class="ti ti-clock" style="color:var(--fill-amber)"></i> Due Tomorrow <span class="count-badge" id="countTomorrow">0</span></h2>
+      <div class="reminder-list" id="listTomorrow"></div>
+    </div>
+    <div class="reminder-group">
+      <h2 class="section-title"><i class="ti ti-calendar-event" style="color:var(--fill-blue)"></i> Upcoming (next 7 days) <span class="count-badge" id="countUpcoming">0</span></h2>
+      <div class="reminder-list" id="listUpcoming"></div>
+    </div>
+  </section>
+
+  <!-- Calendar -->
+  <section class="tab-panel" id="tab-calendar">
+    <div class="calendar-header">
+      <button class="icon-btn" id="calPrev"><i class="ti ti-chevron-left"></i></button>
+      <div class="month-label" id="calMonthLabel"></div>
+      <button class="icon-btn" id="calNext"><i class="ti ti-chevron-right"></i></button>
+    </div>
+    <div class="calendar-grid" id="calGrid"></div>
+    <div class="day-detail" id="dayDetail"></div>
+  </section>
+
+  <!-- All Assignments -->
+  <section class="tab-panel" id="tab-all">
+    <div class="table-controls">
+      <input type="text" id="searchInput" placeholder="Search assignment name...">
+      <select id="courseFilter">
+        <option value="all">All courses</option>
+      </select>
+      <select id="statusFilter">
+        <option value="all">All statuses</option>
+        <option value="overdue">Overdue</option>
+        <option value="today">Due today</option>
+        <option value="tomorrow">Due tomorrow</option>
+        <option value="upcoming">Upcoming</option>
+        <option value="later">Later</option>
+        <option value="done">Completed</option>
+      </select>
+      <select id="typeFilter">
+        <option value="all">All types</option>
+        <option value="assignment">Assignments</option>
+        <option value="exam">Quizzes &amp; Exams</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Done</th>
+            <th>Name</th>
+            <th>Course</th>
+            <th>Points</th>
+            <th>Due Date</th>
+            <th>Due Time</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="allTableBody"></tbody>
+      </table>
+    </div>
+    <p class="results-count" id="resultsCount"></p>
+  </section>
+
+  <!-- Add Assignment -->
+  <section class="tab-panel" id="tab-add">
+    <div class="form-card">
+      <h2 class="section-title" id="formTitle"><i class="ti ti-plus"></i> Add Assignment</h2>
+      <form id="assignmentForm">
+        <input type="hidden" id="editId" value="">
+        <div class="form-row">
+          <label for="fName">Assignment name</label>
+          <input type="text" id="fName" required placeholder="e.g. Homework 3">
+        </div>
+        <div class="form-row">
+          <label for="fCourse">Course</label>
+          <select id="fCourse" required></select>
+        </div>
+        <div class="form-row">
+          <label for="fType">Type</label>
+          <select id="fType">
+            <option value="assignment">Regular assignment</option>
+            <option value="exam">Quiz / Exam (earlier, daily reminders)</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label for="fPoints">Points</label>
+          <input type="number" id="fPoints" min="0" step="1" value="0">
+        </div>
+        <div class="form-row">
+          <label for="fDate">Due date</label>
+          <input type="date" id="fDate" required>
+        </div>
+        <div class="form-row">
+          <label for="fTime">Due time</label>
+          <input type="time" id="fTime" required value="23:59">
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn primary" id="submitBtn"><i class="ti ti-plus"></i> Add Assignment</button>
+          <button type="button" class="btn" id="cancelEditBtn" style="display:none"><i class="ti ti-x"></i> Cancel</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+</div>
+
+<div class="modal-overlay" id="reminderOverlay">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3><i class="ti ti-bell-ringing"></i> Reminders</h3>
+      <button class="icon-btn" id="reminderCloseBtn"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body" id="reminderModalBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
