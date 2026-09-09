@@ -461,8 +461,26 @@ function calendarDaysUntil(dateStr, now) {
   return Math.round((due0 - today0) / 86400000);
 }
 
+function isHW(name) {
+  return /\b(hw|homework)\b/i.test(name);
+}
+
+// The bigger, multi-step Entrepreneurship deliverables (slide drafts, video
+// pitches) - not the lighter peer-review/ranking sub-tasks under the same
+// "Venture Assignment" heading, which don't need a multi-day head start.
+function isVentureProject(name) {
+  return /venture assignment/i.test(name) && !/peer evaluation|force ranking/i.test(name);
+}
+
+function isOptional(name) {
+  return /optional/i.test(name);
+}
+
 function shouldPopupToday(a, daysLeft) {
+  if (isOptional(a.name)) return false;
   if (a.type === 'exam') return daysLeft <= 7;
+  if (isHW(a.name)) return daysLeft === 3 || daysLeft === 2 || daysLeft === 0;
+  if (isVentureProject(a.name)) return daysLeft === 5 || daysLeft === 2 || daysLeft === 0;
   return daysLeft === 2 || daysLeft === 1;
 }
 
@@ -471,6 +489,57 @@ function daysLeftLabel(daysLeft) {
   if (daysLeft === 0) return 'Due today';
   if (daysLeft === 1) return '1 day left';
   return `${daysLeft} days left`;
+}
+
+// The 3 HW check-in points: start it, keep going, wrap it up.
+function hwMessage(daysLeft) {
+  if (daysLeft === 3) return 'Do a couple questions today.';
+  if (daysLeft === 2) return 'Do a couple more questions today.';
+  return 'Finish out the HW you started, just a few more questions!';
+}
+
+// The 3 Venture Assignment check-in points: it's a bigger, multi-step
+// deliverable (slides or a video pitch), so the head start comes earlier.
+function ventureMessage(daysLeft) {
+  if (daysLeft === 5) return "Start on this now. It's a bigger project, so give yourself time.";
+  if (daysLeft === 2) return 'Keep building it out, 2 days left to finish.';
+  return 'Wrap it up and submit it today.';
+}
+
+// Chapter number(s) a quiz covers, from titles like "Ch 4 - Quiz 1" or
+// "Ch. 7 and 8 - Quiz 1". Returns [] if the title doesn't name a chapter
+// (i.e. it's a midterm/makeup, handled separately in getStudyVideosFor).
+function extractQuizChapters(name) {
+  const m = name.match(/Ch\.?\s*(\d+)(?:\s+and\s+(\d+))?/i);
+  if (!m) return [];
+  return m[2] ? [Number(m[1]), Number(m[2])] : [Number(m[1])];
+}
+
+// Chapter number of a lecture-video assignment title, e.g. "Ch. 3: Ideal
+// Gases" -> 3. Returns null for anything not shaped like a chapter video
+// (quizzes included - "Ch 4 - Quiz 1" has no colon right after the number).
+function extractLectureChapterNum(name) {
+  const m = name.match(/^Ch\.?\s*(\d+):/i);
+  return m ? Number(m[1]) : null;
+}
+
+// Videos to study for a given quiz/exam: same-chapter videos for a chapter
+// quiz, or every "Lecture X.X" video before the exam's due date for a
+// cumulative midterm/makeup.
+function getStudyVideosFor(quiz) {
+  if (/midterm|makeup exam/i.test(quiz.name)) {
+    const quizDue = dueDateTime(quiz);
+    return assignments
+      .filter(a => a.course === quiz.course && /^Lecture\s+\d+\.\d+:/i.test(a.name) && dueDateTime(a) < quizDue)
+      .sort((a, b) => dueDateTime(a) - dueDateTime(b))
+      .map(a => a.name);
+  }
+  const chapters = extractQuizChapters(quiz.name);
+  if (!chapters.length) return [];
+  return assignments
+    .filter(a => a.course === quiz.course && chapters.includes(extractLectureChapterNum(a.name)))
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map(a => a.name);
 }
 
 function getReminderLog() {
@@ -519,37 +588,76 @@ function checkReminderPopups(force) {
 
   if ('Notification' in window && Notification.permission === 'granted') {
     const examCount = due.filter(d => d.a.type === 'exam').length;
-    const assignmentCount = due.length - examCount;
+    const hwCount = due.filter(d => d.a.type !== 'exam' && isHW(d.a.name)).length;
+    const ventureCount = due.filter(d => d.a.type !== 'exam' && !isHW(d.a.name) && isVentureProject(d.a.name)).length;
+    const otherCount = due.length - examCount - hwCount - ventureCount;
     const parts = [];
-    if (examCount) parts.push(`${examCount} quiz/exam${examCount > 1 ? 'zes' : ''} coming up`);
-    if (assignmentCount) parts.push(`${assignmentCount} assignment${assignmentCount > 1 ? 's' : ''} due soon`);
+    if (examCount) parts.push(`${examCount} quiz/exam${examCount > 1 ? 'zes' : ''} to study for`);
+    if (hwCount) parts.push(`${hwCount} homework check-in${hwCount > 1 ? 's' : ''}`);
+    if (ventureCount) parts.push(`${ventureCount} venture project${ventureCount > 1 ? 's' : ''}`);
+    if (otherCount) parts.push(`${otherCount} assignment${otherCount > 1 ? 's' : ''} due soon`);
     new Notification('Assignment Tracker', { body: parts.join(' · ') });
   }
 }
 
 function showReminderModal(due) {
   const exams = due.filter(d => d.a.type === 'exam');
-  const regular = due.filter(d => d.a.type !== 'exam');
+  const hw = due.filter(d => d.a.type !== 'exam' && isHW(d.a.name));
+  const venture = due.filter(d => d.a.type !== 'exam' && !isHW(d.a.name) && isVentureProject(d.a.name));
+  const other = due.filter(d => d.a.type !== 'exam' && !isHW(d.a.name) && !isVentureProject(d.a.name));
 
-  const section = (label, list) => {
-    if (!list.length) return '';
-    const items = list.map(({ a, daysLeft }) => {
-      const urgency = daysLeft <= 0 ? 'overdue' : daysLeft === 1 ? 'tomorrow' : 'upcoming';
-      return `
-      <div class="reminder-item ${urgency}">
+  const itemShell = (a, daysLeft, extraHtml) => {
+    const urgency = daysLeft <= 0 ? 'overdue' : daysLeft === 1 ? 'tomorrow' : 'upcoming';
+    return `
+      <div class="reminder-item ${urgency} with-detail">
         <div class="item-main">
           <div class="item-name">${escapeHtml(a.name)}</div>
           <div class="item-meta">${escapeHtml(a.course)} · ${fmtDate(a.dueDate)} at ${fmtTime(a.dueTime)}</div>
+          ${extraHtml || ''}
         </div>
         <span class="badge ${urgency}">${daysLeftLabel(daysLeft)}</span>
       </div>
     `;
-    }).join('');
-    return `<div class="modal-section-label">${label}</div><div class="reminder-list">${items}</div>`;
   };
 
-  document.getElementById('reminderModalBody').innerHTML =
-    section('Quizzes & Exams', exams) + section('Assignments', regular);
+  const examSection = () => {
+    if (!exams.length) return '';
+    const items = exams.map(({ a, daysLeft }) => {
+      const videos = getStudyVideosFor(a);
+      const videoHtml = videos.length
+        ? `<div class="study-note">Study these videos from the module this test covers:</div>
+           <ul class="study-video-list">${videos.map(v => `<li>${escapeHtml(v)}</li>`).join('')}</ul>`
+        : `<div class="study-note">Study up, this one's coming up.</div>`;
+      return itemShell(a, daysLeft, videoHtml);
+    }).join('');
+    return `<div class="modal-section-label">Quizzes &amp; Exams</div><div class="reminder-list">${items}</div>`;
+  };
+
+  const hwSection = () => {
+    if (!hw.length) return '';
+    const items = hw.map(({ a, daysLeft }) => {
+      const msgHtml = `<div class="study-note">${escapeHtml(hwMessage(daysLeft))}</div>`;
+      return itemShell(a, daysLeft, msgHtml);
+    }).join('');
+    return `<div class="modal-section-label">Homework</div><div class="reminder-list">${items}</div>`;
+  };
+
+  const ventureSection = () => {
+    if (!venture.length) return '';
+    const items = venture.map(({ a, daysLeft }) => {
+      const msgHtml = `<div class="study-note">${escapeHtml(ventureMessage(daysLeft))}</div>`;
+      return itemShell(a, daysLeft, msgHtml);
+    }).join('');
+    return `<div class="modal-section-label">Venture Projects</div><div class="reminder-list">${items}</div>`;
+  };
+
+  const otherSection = () => {
+    if (!other.length) return '';
+    const items = other.map(({ a, daysLeft }) => itemShell(a, daysLeft, '')).join('');
+    return `<div class="modal-section-label">Other Assignments</div><div class="reminder-list">${items}</div>`;
+  };
+
+  document.getElementById('reminderModalBody').innerHTML = examSection() + hwSection() + ventureSection() + otherSection();
   document.getElementById('reminderOverlay').classList.add('show');
 }
 
