@@ -115,10 +115,9 @@ function reminderItemHtml(a, status) {
     ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(a.name)}</a>`
     : escapeHtml(a.name);
   const badgeCls = statusBadgeClass(status);
-  const typeTag = a.type === 'exam' ? `<span class="badge type-exam">Quiz/Exam</span>` : '';
   return `
     <div class="reminder-item ${badgeCls}">
-      ${typeTag}
+      ${typeTagHtml(a)}
       <div class="item-name-row">
         <input type="checkbox" class="item-check" data-id="${a.id}" aria-label="Mark ${escapeHtml(a.name)} complete">
         <div class="item-name">${nameContent}</div>
@@ -179,6 +178,15 @@ function courseTagHtml(course) {
   return `<span class="course-dot" style="background:${color}"></span>${escapeHtml(course)}`;
 }
 
+// Per-item tag: says "Quiz" or "Exam" specifically instead of the old
+// generic "Quiz/Exam", since items now also get grouped into separate
+// Quizzes/Exams lists wherever both show up together.
+function typeTagHtml(a) {
+  if (a.type !== 'exam') return '';
+  const label = isQuizName(a.name) ? 'Quiz' : 'Exam';
+  return `<span class="badge type-exam">${label}</span>`;
+}
+
 function renderReminders() {
   const now = new Date();
   const tomorrow = [];
@@ -202,21 +210,27 @@ function renderReminders() {
   renderGroupedByDate('listUpcoming', upcoming, 'upcoming');
 }
 
-// Quizzes/exams never share a grid row with regular assignments - split into
-// its own labeled block first, so the two never end up paired together.
+// Splits a list into Quizzes / Exams / regular Assignments - the three
+// never share a group. Only used when more than one of the three is
+// actually present; a list that's e.g. all quizzes renders flat with no
+// redundant single label.
+function splitByQuizExamAssignment(items) {
+  return {
+    quizzes: items.filter(a => a.type === 'exam' && isQuizName(a.name)),
+    exams: items.filter(a => a.type === 'exam' && !isQuizName(a.name)),
+    assignments: items.filter(a => a.type !== 'exam'),
+  };
+}
+
 function typeSplitGridHtml(items, status) {
-  const exams = items.filter(a => a.type === 'exam');
-  const others = items.filter(a => a.type !== 'exam');
+  const { quizzes, exams, assignments } = splitByQuizExamAssignment(items);
+  const groups = [['Quizzes', quizzes], ['Exams', exams], ['Assignments', assignments]].filter(([, arr]) => arr.length);
   const gridHtml = (arr) => `<div class="reminder-list grid">${arr.map(a => reminderItemHtml(a, status)).join('')}</div>`;
-  if (exams.length && others.length) {
-    return `
-      <div class="type-group-label">Quizzes &amp; Exams</div>
-      ${gridHtml(exams)}
-      <div class="type-group-label">Assignments</div>
-      ${gridHtml(others)}
-    `;
-  }
-  return gridHtml(items);
+  if (groups.length <= 1) return gridHtml(items);
+  return groups.map(([label, arr]) => `
+    <div class="type-group-label">${label}</div>
+    ${gridHtml(arr)}
+  `).join('');
 }
 
 // Groups a list of assignments by dueDate and renders each date as its own
@@ -245,12 +259,11 @@ function widgetItemHtml(a, badgeText, badgeCls, noteHtml, showDate) {
     ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(a.name)}</a>`
     : escapeHtml(a.name);
   const whenText = showDate ? `${fmtDate(a.dueDate)} at ${fmtTime(a.dueTime)}` : fmtTime(a.dueTime);
-  const typeTag = a.type === 'exam' ? `<span class="badge type-exam">Quiz/Exam</span>` : '';
   return `
     <div class="widget-item">
       <input type="checkbox" class="item-check" data-id="${a.id}" aria-label="Mark ${escapeHtml(a.name)} complete">
       <div class="widget-item-main">
-        ${typeTag}
+        ${typeTagHtml(a)}
         <div class="widget-item-name" title="${escapeHtml(a.name)}">${nameContent}</div>
         <div class="widget-item-meta">${courseTagHtml(a.course)} · ${whenText}</div>
         ${noteHtml || ''}
@@ -260,21 +273,32 @@ function widgetItemHtml(a, badgeText, badgeCls, noteHtml, showDate) {
   `;
 }
 
-// Quizzes/exams never share a list with regular assignments in the Overdue
-// or Due Today widgets - split into its own labeled block first, matching
-// the same rule already applied to the Due Tomorrow/Upcoming grids.
+// Same Quizzes / Exams / Assignments split as typeSplitGridHtml, for the
+// Overdue and Due Today widget lists instead of a grid.
 function typeSplitWidgetHtml(items, itemToHtml) {
-  const exams = items.filter(a => a.type === 'exam');
-  const others = items.filter(a => a.type !== 'exam');
-  if (exams.length && others.length) {
+  const { quizzes, exams, assignments } = splitByQuizExamAssignment(items);
+  const groups = [['Quizzes', quizzes], ['Exams', exams], ['Assignments', assignments]].filter(([, arr]) => arr.length);
+  if (groups.length <= 1) return items.map(itemToHtml).join('');
+  return groups.map(([label, arr]) => `
+    <div class="type-group-label">${label}</div>
+    ${arr.map(itemToHtml).join('')}
+  `).join('');
+}
+
+// Study Sessions only ever holds exam-type items (quizzes + midterms/makeup
+// exams), so it needs just the Quizzes/Exams half of the 3-way split above.
+function splitStudyByQuizExam(studyItems, itemToHtml) {
+  const quizzes = studyItems.filter(s => isQuizName(s.a.name));
+  const exams = studyItems.filter(s => !isQuizName(s.a.name));
+  if (quizzes.length && exams.length) {
     return `
-      <div class="type-group-label">Quizzes &amp; Exams</div>
+      <div class="type-group-label">Quizzes</div>
+      ${quizzes.map(itemToHtml).join('')}
+      <div class="type-group-label">Exams</div>
       ${exams.map(itemToHtml).join('')}
-      <div class="type-group-label">Assignments</div>
-      ${others.map(itemToHtml).join('')}
     `;
   }
-  return items.map(itemToHtml).join('');
+  return studyItems.map(itemToHtml).join('');
 }
 
 function overdueLabel(a, now) {
@@ -323,15 +347,16 @@ function renderTodayWidgets() {
     ? typeSplitWidgetHtml(dueToday, a => widgetItemHtml(a, `${a.points} pts`, 'points'))
     : emptyHtml('Nothing due today.');
 
+  const studyItemHtml = ({ a, daysLeft }) => {
+    const videos = getStudyVideosFor(a);
+    const urgency = daysLeft === 0 ? 'tomorrow' : 'upcoming';
+    const note = videos.length
+      ? `<div class="widget-item-note">${videos.length} video${videos.length > 1 ? 's' : ''} to review</div>`
+      : '';
+    return widgetItemHtml(a, daysLeftLabel(daysLeft), urgency, note);
+  };
   document.getElementById('widgetStudy').innerHTML = study.length
-    ? study.map(({ a, daysLeft }) => {
-        const videos = getStudyVideosFor(a);
-        const urgency = daysLeft === 0 ? 'tomorrow' : 'upcoming';
-        const note = videos.length
-          ? `<div class="widget-item-note">${videos.length} video${videos.length > 1 ? 's' : ''} to review</div>`
-          : '';
-        return widgetItemHtml(a, daysLeftLabel(daysLeft), urgency, note);
-      }).join('')
+    ? splitStudyByQuizExam(study, studyItemHtml)
     : emptyHtml('No tests to study for right now.');
 
   document.getElementById('widgetHW').innerHTML = hwProjects.length
@@ -518,11 +543,10 @@ function renderTable() {
       const nameContent = url
         ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(a.name)}</a>`
         : escapeHtml(a.name);
-      const typeTag = a.type === 'exam' ? `<span class="badge type-exam">Quiz/Exam</span> ` : '';
       return `
         <tr data-id="${a.id}" class="${a.completed ? 'completed-row' : ''}">
           <td class="check-cell"><input type="checkbox" class="complete-check" title="Mark complete" ${a.completed ? 'checked' : ''}></td>
-          <td class="name-cell">${typeTag}${nameContent}</td>
+          <td class="name-cell">${typeTagHtml(a)}${nameContent}</td>
           <td>${courseTagHtml(a.course)}</td>
           <td>${a.points}</td>
           <td>${fmtDate(a.dueDate)}</td>
@@ -622,6 +646,15 @@ function calendarDaysUntil(dateStr, now) {
 
 function isHW(name) {
   return /\b(hw|homework)\b/i.test(name);
+}
+
+// Within the combined "exam type" bucket (quiz|exam|midterm - see
+// detectType), tells a chapter quiz apart from a midterm/makeup exam so the
+// two can get their own separate lists instead of one merged "Quizzes &
+// Exams" group. None of the seed titles match both words, so this is a
+// clean split.
+function isQuizName(name) {
+  return /\bquiz\b/i.test(name);
 }
 
 // The bigger, multi-step Entrepreneurship deliverables (slide drafts, video
@@ -746,12 +779,14 @@ function checkReminderPopups(force) {
   showReminderModal(due);
 
   if ('Notification' in window && Notification.permission === 'granted') {
-    const examCount = due.filter(d => d.a.type === 'exam').length;
+    const quizCount = due.filter(d => d.a.type === 'exam' && isQuizName(d.a.name)).length;
+    const examCount = due.filter(d => d.a.type === 'exam' && !isQuizName(d.a.name)).length;
     const hwCount = due.filter(d => d.a.type !== 'exam' && isHW(d.a.name)).length;
     const ventureCount = due.filter(d => d.a.type !== 'exam' && !isHW(d.a.name) && isVentureProject(d.a.name)).length;
-    const otherCount = due.length - examCount - hwCount - ventureCount;
+    const otherCount = due.length - quizCount - examCount - hwCount - ventureCount;
     const parts = [];
-    if (examCount) parts.push(`${examCount} quiz/exam${examCount > 1 ? 'zes' : ''} to study for`);
+    if (quizCount) parts.push(`${quizCount} quiz${quizCount > 1 ? 'zes' : ''} to study for`);
+    if (examCount) parts.push(`${examCount} exam${examCount > 1 ? 's' : ''} to study for`);
     if (hwCount) parts.push(`${hwCount} homework check-in${hwCount > 1 ? 's' : ''}`);
     if (ventureCount) parts.push(`${ventureCount} venture project${ventureCount > 1 ? 's' : ''}`);
     if (otherCount) parts.push(`${otherCount} assignment${otherCount > 1 ? 's' : ''} due soon`);
@@ -760,7 +795,8 @@ function checkReminderPopups(force) {
 }
 
 function showReminderModal(due) {
-  const exams = due.filter(d => d.a.type === 'exam');
+  const quizzes = due.filter(d => d.a.type === 'exam' && isQuizName(d.a.name));
+  const exams = due.filter(d => d.a.type === 'exam' && !isQuizName(d.a.name));
   const hw = due.filter(d => d.a.type !== 'exam' && isHW(d.a.name));
   const venture = due.filter(d => d.a.type !== 'exam' && !isHW(d.a.name) && isVentureProject(d.a.name));
   const other = due.filter(d => d.a.type !== 'exam' && !isHW(d.a.name) && !isVentureProject(d.a.name));
@@ -779,9 +815,9 @@ function showReminderModal(due) {
     `;
   };
 
-  const examSection = () => {
-    if (!exams.length) return '';
-    const items = exams.map(({ a, daysLeft }) => {
+  const studySection = (list, label) => {
+    if (!list.length) return '';
+    const items = list.map(({ a, daysLeft }) => {
       const videos = getStudyVideosFor(a);
       const videoHtml = videos.length
         ? `<div class="study-note">Study these videos from the module this test covers:</div>
@@ -789,8 +825,11 @@ function showReminderModal(due) {
         : `<div class="study-note">Study up, this one's coming up.</div>`;
       return itemShell(a, daysLeft, videoHtml);
     }).join('');
-    return `<div class="modal-section-label">Quizzes &amp; Exams</div><div class="reminder-list">${items}</div>`;
+    return `<div class="modal-section-label">${label}</div><div class="reminder-list">${items}</div>`;
   };
+
+  const quizSection = () => studySection(quizzes, 'Quizzes');
+  const examSection = () => studySection(exams, 'Exams');
 
   const hwSection = () => {
     if (!hw.length) return '';
@@ -816,7 +855,7 @@ function showReminderModal(due) {
     return `<div class="modal-section-label">Other Assignments</div><div class="reminder-list">${items}</div>`;
   };
 
-  document.getElementById('reminderModalBody').innerHTML = examSection() + hwSection() + ventureSection() + otherSection();
+  document.getElementById('reminderModalBody').innerHTML = quizSection() + examSection() + hwSection() + ventureSection() + otherSection();
   document.getElementById('reminderOverlay').classList.add('show');
 }
 
