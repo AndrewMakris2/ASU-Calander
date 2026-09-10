@@ -100,30 +100,33 @@ function renderStats() {
   document.getElementById('statPoints').textContent = s.points;
 }
 
+// Renders one grid card for the Due Tomorrow / Upcoming sections. The date
+// itself already lives in the section title or date-group heading above, so
+// the card body only needs the course, time, and a per-item countdown -
+// showing the same static "Upcoming" label on every card would be dead
+// weight when the section heading already says that.
 function reminderItemHtml(a, status) {
   const due = dueDateTime(a);
   const now = new Date();
-  const diffMs = due - now;
-  const diffHrs = Math.round(diffMs / 36e5);
-  let metaExtra;
-  if (status === 'overdue') {
-    const hrsLate = Math.round((now - due) / 36e5);
-    metaExtra = hrsLate < 24 ? `${hrsLate}h overdue` : `${Math.round(hrsLate / 24)}d overdue`;
-  } else {
-    metaExtra = diffHrs < 24 ? `in ${diffHrs}h` : `in ${Math.round(diffHrs / 24)}d`;
-  }
+  const diffHrs = Math.round((due - now) / 36e5);
+  const countdown = diffHrs < 24 ? `in ${diffHrs}h` : `in ${Math.round(diffHrs / 24)}d`;
   const nameContent = a.url
     ? `<a href="${a.url}" target="_blank" rel="noopener">${escapeHtml(a.name)}</a>`
     : escapeHtml(a.name);
   const badgeCls = statusBadgeClass(status);
+  const typeTag = a.type === 'exam' ? `<span class="badge type-exam">Quiz/Exam</span>` : '';
   return `
     <div class="reminder-item ${badgeCls}">
-      <div class="item-main">
+      ${typeTag}
+      <div class="item-name-row">
+        <input type="checkbox" class="item-check" data-id="${a.id}" aria-label="Mark ${escapeHtml(a.name)} complete">
         <div class="item-name">${nameContent}</div>
-        <div class="item-meta">${courseTagHtml(a.course)} · ${fmtDate(a.dueDate)} at ${fmtTime(a.dueTime)} · ${metaExtra}</div>
       </div>
-      <span class="badge ${badgeCls}">${STATUS_LABELS[status]}</span>
-      <span class="badge points">${a.points} pts</span>
+      <div class="item-meta">${courseTagHtml(a.course)} · ${fmtTime(a.dueTime)}</div>
+      <div class="item-footer">
+        <span class="badge ${badgeCls}">${countdown}</span>
+        <span class="badge points">${a.points} pts</span>
+      </div>
     </div>
   `;
 }
@@ -169,17 +172,50 @@ function renderReminders() {
   document.getElementById('countTomorrow').textContent = tomorrow.length;
   document.getElementById('countUpcoming').textContent = upcoming.length;
 
-  const fill = (elId, list, status) => {
-    const el = document.getElementById(elId);
-    if (!list.length) {
-      el.innerHTML = `<div class="empty-state">Nothing here. You're all caught up.</div>`;
-      return;
-    }
-    el.innerHTML = list.map(a => reminderItemHtml(a, status)).join('');
-  };
+  // Due Tomorrow is a single date, so just grid it - no date heading needed.
+  const tomorrowEl = document.getElementById('listTomorrow');
+  tomorrowEl.innerHTML = tomorrow.length
+    ? typeSplitGridHtml(tomorrow, 'tomorrow')
+    : `<div class="empty-state">Nothing here. You're all caught up.</div>`;
 
-  fill('listTomorrow', tomorrow, 'tomorrow');
-  fill('listUpcoming', upcoming, 'upcoming');
+  renderGroupedByDate('listUpcoming', upcoming, 'upcoming');
+}
+
+// Quizzes/exams never share a grid row with regular assignments - split into
+// its own labeled block first, so the two never end up paired together.
+function typeSplitGridHtml(items, status) {
+  const exams = items.filter(a => a.type === 'exam');
+  const others = items.filter(a => a.type !== 'exam');
+  const gridHtml = (arr) => `<div class="reminder-list grid">${arr.map(a => reminderItemHtml(a, status)).join('')}</div>`;
+  if (exams.length && others.length) {
+    return `
+      <div class="type-group-label">Quizzes &amp; Exams</div>
+      ${gridHtml(exams)}
+      <div class="type-group-label">Assignments</div>
+      ${gridHtml(others)}
+    `;
+  }
+  return gridHtml(items);
+}
+
+// Groups a list of assignments by dueDate and renders each date as its own
+// heading + 3-per-row grid (with quizzes/exams split out within each date),
+// instead of one long undifferentiated list.
+function renderGroupedByDate(elId, list, status) {
+  const el = document.getElementById(elId);
+  if (!list.length) {
+    el.innerHTML = `<div class="empty-state">Nothing here. You're all caught up.</div>`;
+    return;
+  }
+  const groups = {};
+  list.forEach(a => { (groups[a.dueDate] = groups[a.dueDate] || []).push(a); });
+  const dates = Object.keys(groups).sort();
+  el.innerHTML = dates.map(date => `
+    <div class="date-group">
+      <div class="date-group-heading">${fmtDate(date)}</div>
+      ${typeSplitGridHtml(groups[date], status)}
+    </div>
+  `).join('');
 }
 
 function widgetItemHtml(a, badgeText, badgeCls, noteHtml, showDate) {
@@ -189,6 +225,7 @@ function widgetItemHtml(a, badgeText, badgeCls, noteHtml, showDate) {
   const whenText = showDate ? `${fmtDate(a.dueDate)} at ${fmtTime(a.dueTime)}` : fmtTime(a.dueTime);
   return `
     <div class="widget-item">
+      <input type="checkbox" class="item-check" data-id="${a.id}" aria-label="Mark ${escapeHtml(a.name)} complete">
       <div class="widget-item-main">
         <div class="widget-item-name" title="${escapeHtml(a.name)}">${nameContent}</div>
         <div class="widget-item-meta">${courseTagHtml(a.course)} · ${whenText}</div>
@@ -805,6 +842,14 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('searchInput').addEventListener('input', renderTable);
 
   document.getElementById('cancelEditBtn').addEventListener('click', resetForm);
+
+  // Delegated: covers every checkbox rendered inside the Today widgets, Due
+  // Tomorrow, and Upcoming cards, even across re-renders and nested date-groups.
+  document.getElementById('tab-reminders').addEventListener('change', (e) => {
+    if (e.target.classList.contains('item-check')) {
+      toggleComplete(e.target.dataset.id);
+    }
+  });
 
   document.getElementById('assignmentForm').addEventListener('submit', (e) => {
     e.preventDefault();
