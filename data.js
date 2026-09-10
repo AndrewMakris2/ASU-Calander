@@ -18,6 +18,14 @@ const COURSE_LABELS = {
   'Entrepreneurship & Value Creation': 'Entrepreneurship & Value Creation',
 };
 
+const COURSE_COLORS = {
+  'MAE 241': '#6b5b95',
+  'MAE 384': '#c1662c',
+  'MAE 213': '#b0567a',
+  'MAE 242': '#7a8450',
+  'Entrepreneurship & Value Creation': '#4a8fa3',
+};
+
 const CANVAS_BASE = {
   'MAE 241': 'https://canvas.asu.edu/courses/269185',
   'MAE 384': 'https://canvas.asu.edu/courses/267343',

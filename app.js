@@ -120,7 +120,7 @@ function reminderItemHtml(a, status) {
     <div class="reminder-item ${badgeCls}">
       <div class="item-main">
         <div class="item-name">${nameContent}</div>
-        <div class="item-meta">${escapeHtml(a.course)} · ${fmtDate(a.dueDate)} at ${fmtTime(a.dueTime)} · ${metaExtra}</div>
+        <div class="item-meta">${courseTagHtml(a.course)} · ${fmtDate(a.dueDate)} at ${fmtTime(a.dueTime)} · ${metaExtra}</div>
       </div>
       <span class="badge ${badgeCls}">${STATUS_LABELS[status]}</span>
       <span class="badge points">${a.points} pts</span>
@@ -148,6 +148,11 @@ function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+function courseTagHtml(course) {
+  const color = COURSE_COLORS[course] || '#9ca3af';
+  return `<span class="course-dot" style="background:${color}"></span>${escapeHtml(course)}`;
 }
 
 function renderReminders() {
@@ -303,7 +308,7 @@ function renderDayDetail() {
       <div class="reminder-item ${borderCls}">
         <div class="item-main">
           <div class="item-name">${nameContent}</div>
-          <div class="item-meta">${escapeHtml(a.course)} · ${fmtTime(a.dueTime)}</div>
+          <div class="item-meta">${courseTagHtml(a.course)} · ${fmtTime(a.dueTime)}</div>
         </div>
         <span class="badge ${badgeCls}">${STATUS_LABELS[status]}</span>
         <span class="badge points">${a.points} pts</span>
@@ -364,7 +369,7 @@ function renderTable() {
         <tr data-id="${a.id}" class="${a.completed ? 'completed-row' : ''}">
           <td class="check-cell"><input type="checkbox" class="complete-check" title="Mark complete" ${a.completed ? 'checked' : ''}></td>
           <td class="name-cell">${typeTag}${nameContent}</td>
-          <td>${escapeHtml(a.course)}</td>
+          <td>${courseTagHtml(a.course)}</td>
           <td>${a.points}</td>
           <td>${fmtDate(a.dueDate)}</td>
           <td>${fmtTime(a.dueTime)}</td>
@@ -612,7 +617,7 @@ function showReminderModal(due) {
       <div class="reminder-item ${urgency} with-detail">
         <div class="item-main">
           <div class="item-name">${escapeHtml(a.name)}</div>
-          <div class="item-meta">${escapeHtml(a.course)} · ${fmtDate(a.dueDate)} at ${fmtTime(a.dueTime)}</div>
+          <div class="item-meta">${courseTagHtml(a.course)} · ${fmtDate(a.dueDate)} at ${fmtTime(a.dueTime)}</div>
           ${extraHtml || ''}
         </div>
         <span class="badge ${urgency}">${daysLeftLabel(daysLeft)}</span>
