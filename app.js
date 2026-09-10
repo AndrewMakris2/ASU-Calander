@@ -157,21 +157,15 @@ function courseTagHtml(course) {
 
 function renderReminders() {
   const now = new Date();
-  const overdue = [];
-  const today = [];
   const tomorrow = [];
   const upcoming = [];
   assignments.forEach(a => {
     const status = classify(a, now);
-    if (status === 'overdue') overdue.push(a);
-    else if (status === 'today') today.push(a);
-    else if (status === 'tomorrow') tomorrow.push(a);
+    if (status === 'tomorrow') tomorrow.push(a);
     else if (status === 'upcoming') upcoming.push(a);
   });
-  [overdue, today, tomorrow, upcoming].forEach(list => list.sort((a, b) => dueDateTime(a) - dueDateTime(b)));
+  [tomorrow, upcoming].forEach(list => list.sort((a, b) => dueDateTime(a) - dueDateTime(b)));
 
-  document.getElementById('countOverdue').textContent = overdue.length;
-  document.getElementById('countToday').textContent = today.length;
   document.getElementById('countTomorrow').textContent = tomorrow.length;
   document.getElementById('countUpcoming').textContent = upcoming.length;
 
@@ -184,10 +178,90 @@ function renderReminders() {
     el.innerHTML = list.map(a => reminderItemHtml(a, status)).join('');
   };
 
-  fill('listOverdue', overdue, 'overdue');
-  fill('listToday', today, 'today');
   fill('listTomorrow', tomorrow, 'tomorrow');
   fill('listUpcoming', upcoming, 'upcoming');
+}
+
+function widgetItemHtml(a, badgeText, badgeCls, noteHtml, showDate) {
+  const nameContent = a.url
+    ? `<a href="${a.url}" target="_blank" rel="noopener">${escapeHtml(a.name)}</a>`
+    : escapeHtml(a.name);
+  const whenText = showDate ? `${fmtDate(a.dueDate)} at ${fmtTime(a.dueTime)}` : fmtTime(a.dueTime);
+  return `
+    <div class="widget-item">
+      <div class="widget-item-main">
+        <div class="widget-item-name" title="${escapeHtml(a.name)}">${nameContent}</div>
+        <div class="widget-item-meta">${courseTagHtml(a.course)} · ${whenText}</div>
+        ${noteHtml || ''}
+      </div>
+      <span class="badge ${badgeCls}">${badgeText}</span>
+    </div>
+  `;
+}
+
+function overdueLabel(a, now) {
+  const hrsLate = Math.round((now - dueDateTime(a)) / 36e5);
+  return hrsLate < 24 ? `${hrsLate}h overdue` : `${Math.round(hrsLate / 24)}d overdue`;
+}
+
+// The "Today" widget row: everything the reminder popup would tell you,
+// but persistent on the page instead of a modal you might dismiss and lose.
+function renderTodayWidgets() {
+  const now = new Date();
+  const overdue = [];
+  const dueToday = [];
+  const study = [];
+  const hwProjects = [];
+
+  assignments.forEach(a => {
+    if (a.completed) return;
+    const status = classify(a, now);
+    if (status === 'overdue') { overdue.push(a); return; }
+    if (status === 'today') dueToday.push(a);
+
+    const daysLeft = calendarDaysUntil(a.dueDate, now);
+    if (daysLeft < 0 || isOptional(a.name)) return;
+    if (a.type === 'exam' && daysLeft <= 7) {
+      study.push({ a, daysLeft });
+    } else if (isHW(a.name) && (daysLeft === 3 || daysLeft === 2 || daysLeft === 0)) {
+      hwProjects.push({ a, daysLeft, note: hwMessage(daysLeft) });
+    } else if (isVentureProject(a.name) && (daysLeft === 5 || daysLeft === 2 || daysLeft === 0)) {
+      hwProjects.push({ a, daysLeft, note: ventureMessage(daysLeft) });
+    }
+  });
+
+  overdue.sort((a, b) => dueDateTime(a) - dueDateTime(b));
+  dueToday.sort((a, b) => dueDateTime(a) - dueDateTime(b));
+  study.sort((x, y) => x.daysLeft - y.daysLeft);
+  hwProjects.sort((x, y) => x.daysLeft - y.daysLeft);
+
+  const emptyHtml = (msg) => `<div class="empty-state">${msg}</div>`;
+
+  document.getElementById('widgetOverdue').innerHTML = overdue.length
+    ? overdue.map(a => widgetItemHtml(a, overdueLabel(a, now), 'overdue', '', true)).join('')
+    : emptyHtml("Nothing overdue. You're on track.");
+
+  document.getElementById('widgetToday').innerHTML = dueToday.length
+    ? dueToday.map(a => widgetItemHtml(a, `${a.points} pts`, 'points')).join('')
+    : emptyHtml('Nothing due today.');
+
+  document.getElementById('widgetStudy').innerHTML = study.length
+    ? study.map(({ a, daysLeft }) => {
+        const videos = getStudyVideosFor(a);
+        const urgency = daysLeft === 0 ? 'tomorrow' : 'upcoming';
+        const note = videos.length
+          ? `<div class="widget-item-note">${videos.length} video${videos.length > 1 ? 's' : ''} to review</div>`
+          : '';
+        return widgetItemHtml(a, daysLeftLabel(daysLeft), urgency, note);
+      }).join('')
+    : emptyHtml('No tests to study for right now.');
+
+  document.getElementById('widgetHW').innerHTML = hwProjects.length
+    ? hwProjects.map(({ a, daysLeft, note }) => {
+        const urgency = daysLeft === 0 ? 'tomorrow' : 'upcoming';
+        return widgetItemHtml(a, daysLeftLabel(daysLeft), urgency, `<div class="widget-item-note">${escapeHtml(note)}</div>`);
+      }).join('')
+    : emptyHtml('No check-ins due today.');
 }
 
 /* ---------- Calendar ---------- */
@@ -693,6 +767,7 @@ function toggleTheme() {
 /* ---------- Render all ---------- */
 function renderAll() {
   renderStats();
+  renderTodayWidgets();
   renderReminders();
   renderCalendar();
   renderTable();

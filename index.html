@@ -59,14 +59,26 @@
 
   <!-- Reminders -->
   <section class="tab-panel active" id="tab-reminders">
-    <div class="reminder-group">
-      <h2 class="section-title"><i class="ti ti-alert-triangle" style="color:var(--fill-red)"></i> Overdue <span class="count-badge" id="countOverdue">0</span></h2>
-      <div class="reminder-list" id="listOverdue"></div>
+    <h2 class="section-title today-heading"><i class="ti ti-sun-high"></i> Today</h2>
+    <div class="today-widgets">
+      <div class="widget-card widget-overdue">
+        <div class="widget-header"><i class="ti ti-alert-triangle"></i> Overdue</div>
+        <div class="widget-body" id="widgetOverdue"></div>
+      </div>
+      <div class="widget-card widget-today">
+        <div class="widget-header"><i class="ti ti-calendar-event"></i> Due Today</div>
+        <div class="widget-body" id="widgetToday"></div>
+      </div>
+      <div class="widget-card widget-study">
+        <div class="widget-header"><i class="ti ti-book"></i> Study Sessions</div>
+        <div class="widget-body" id="widgetStudy"></div>
+      </div>
+      <div class="widget-card widget-hw">
+        <div class="widget-header"><i class="ti ti-clipboard-list"></i> Homework &amp; Projects</div>
+        <div class="widget-body" id="widgetHW"></div>
+      </div>
     </div>
-    <div class="reminder-group">
-      <h2 class="section-title"><i class="ti ti-clock" style="color:var(--fill-amber)"></i> Due Today <span class="count-badge" id="countToday">0</span></h2>
-      <div class="reminder-list" id="listToday"></div>
-    </div>
+
     <div class="reminder-group">
       <h2 class="section-title"><i class="ti ti-clock" style="color:var(--fill-amber)"></i> Due Tomorrow <span class="count-badge" id="countTomorrow">0</span></h2>
       <div class="reminder-list" id="listTomorrow"></div>

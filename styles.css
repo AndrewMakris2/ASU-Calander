@@ -234,6 +234,114 @@ body {
   gap: 8px;
 }
 
+/* Today widgets */
+.today-heading {
+  margin-bottom: 12px;
+}
+
+.today-widgets {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.widget-card {
+  background: var(--surface-1);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-container);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 150px;
+  min-width: 0;
+}
+
+.widget-header {
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.widget-overdue .widget-header { color: var(--fill-red); }
+.widget-today .widget-header { color: var(--fill-amber); }
+.widget-study .widget-header { color: var(--fill-accent); }
+.widget-hw .widget-header { color: var(--fill-accent); }
+
+.widget-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  min-width: 0;
+}
+
+.widget-body .empty-state {
+  margin: auto 0;
+  border: none;
+  padding: 8px 0;
+  font-size: 0.82rem;
+}
+
+.widget-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.widget-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.widget-item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.widget-item-name {
+  font-size: 0.86rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.widget-item-name a {
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.widget-item-name a:hover {
+  color: var(--fill-accent);
+}
+
+.widget-item-meta {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  margin-top: 1px;
+}
+
+.widget-item-note {
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+  font-style: italic;
+  margin-top: 3px;
+}
+
 .reminder-group {
   margin-bottom: 22px;
 }
@@ -782,6 +890,10 @@ select:focus-visible {
     grid-template-columns: repeat(2, 1fr);
   }
 
+  .today-widgets {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
   .app-header {
     flex-wrap: wrap;
   }
@@ -798,6 +910,10 @@ select:focus-visible {
 @media (max-width: 480px) {
   .stats-grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .today-widgets {
+    grid-template-columns: 1fr;
   }
 
   .app {
