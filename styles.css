@@ -416,6 +416,10 @@ input[type="checkbox"]:checked::after {
   line-height: 1.4;
 }
 
+.widget-item-main .badge.type-exam {
+  margin-bottom: 4px;
+}
+
 .widget-item-name a {
   color: var(--text-primary);
   font-weight: 700;

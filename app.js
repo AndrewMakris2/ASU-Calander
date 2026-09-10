@@ -223,10 +223,12 @@ function widgetItemHtml(a, badgeText, badgeCls, noteHtml, showDate) {
     ? `<a href="${a.url}" target="_blank" rel="noopener">${escapeHtml(a.name)}</a>`
     : escapeHtml(a.name);
   const whenText = showDate ? `${fmtDate(a.dueDate)} at ${fmtTime(a.dueTime)}` : fmtTime(a.dueTime);
+  const typeTag = a.type === 'exam' ? `<span class="badge type-exam">Quiz/Exam</span>` : '';
   return `
     <div class="widget-item">
       <input type="checkbox" class="item-check" data-id="${a.id}" aria-label="Mark ${escapeHtml(a.name)} complete">
       <div class="widget-item-main">
+        ${typeTag}
         <div class="widget-item-name" title="${escapeHtml(a.name)}">${nameContent}</div>
         <div class="widget-item-meta">${courseTagHtml(a.course)} · ${whenText}</div>
         ${noteHtml || ''}
@@ -234,6 +236,23 @@ function widgetItemHtml(a, badgeText, badgeCls, noteHtml, showDate) {
       <span class="badge ${badgeCls}">${badgeText}</span>
     </div>
   `;
+}
+
+// Quizzes/exams never share a list with regular assignments in the Overdue
+// or Due Today widgets - split into its own labeled block first, matching
+// the same rule already applied to the Due Tomorrow/Upcoming grids.
+function typeSplitWidgetHtml(items, itemToHtml) {
+  const exams = items.filter(a => a.type === 'exam');
+  const others = items.filter(a => a.type !== 'exam');
+  if (exams.length && others.length) {
+    return `
+      <div class="type-group-label">Quizzes &amp; Exams</div>
+      ${exams.map(itemToHtml).join('')}
+      <div class="type-group-label">Assignments</div>
+      ${others.map(itemToHtml).join('')}
+    `;
+  }
+  return items.map(itemToHtml).join('');
 }
 
 function overdueLabel(a, now) {
@@ -275,11 +294,11 @@ function renderTodayWidgets() {
   const emptyHtml = (msg) => `<div class="empty-state">${msg}</div>`;
 
   document.getElementById('widgetOverdue').innerHTML = overdue.length
-    ? overdue.map(a => widgetItemHtml(a, overdueLabel(a, now), 'overdue', '', true)).join('')
+    ? typeSplitWidgetHtml(overdue, a => widgetItemHtml(a, overdueLabel(a, now), 'overdue', '', true))
     : emptyHtml("Nothing overdue. You're on track.");
 
   document.getElementById('widgetToday').innerHTML = dueToday.length
-    ? dueToday.map(a => widgetItemHtml(a, `${a.points} pts`, 'points')).join('')
+    ? typeSplitWidgetHtml(dueToday, a => widgetItemHtml(a, `${a.points} pts`, 'points'))
     : emptyHtml('Nothing due today.');
 
   document.getElementById('widgetStudy').innerHTML = study.length
