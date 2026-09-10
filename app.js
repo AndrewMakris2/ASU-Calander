@@ -110,8 +110,9 @@ function reminderItemHtml(a, status) {
   const now = new Date();
   const diffHrs = Math.round((due - now) / 36e5);
   const countdown = diffHrs < 24 ? `in ${diffHrs}h` : `in ${Math.round(diffHrs / 24)}d`;
-  const nameContent = a.url
-    ? `<a href="${a.url}" target="_blank" rel="noopener">${escapeHtml(a.name)}</a>`
+  const url = safeUrl(a.url);
+  const nameContent = url
+    ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(a.name)}</a>`
     : escapeHtml(a.name);
   const badgeCls = statusBadgeClass(status);
   const typeTag = a.type === 'exam' ? `<span class="badge type-exam">Quiz/Exam</span>` : '';
@@ -147,10 +148,30 @@ function statusBadgeClass(status) {
   return 'upcoming';
 }
 
+// Escapes for both HTML text and quoted-attribute contexts (title="",
+// aria-label=""). The textContent/innerHTML round-trip trick this used to
+// use only escapes &, <, > - it leaves quotes untouched, so a name typed
+// with a `"` breaks out of any attribute it's placed in.
 function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Only http(s) links are ever rendered as href - blocks a javascript: URL
+// from executing if localStorage is ever tampered with directly (devtools,
+// a malicious extension, another XSS elsewhere).
+function safeUrl(url) {
+  if (!url) return '';
+  try {
+    const parsed = new URL(url, window.location.href);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? url : '';
+  } catch (e) {
+    return '';
+  }
 }
 
 function courseTagHtml(course) {
@@ -219,8 +240,9 @@ function renderGroupedByDate(elId, list, status) {
 }
 
 function widgetItemHtml(a, badgeText, badgeCls, noteHtml, showDate) {
-  const nameContent = a.url
-    ? `<a href="${a.url}" target="_blank" rel="noopener">${escapeHtml(a.name)}</a>`
+  const url = safeUrl(a.url);
+  const nameContent = url
+    ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(a.name)}</a>`
     : escapeHtml(a.name);
   const whenText = showDate ? `${fmtDate(a.dueDate)} at ${fmtTime(a.dueTime)}` : fmtTime(a.dueTime);
   const typeTag = a.type === 'exam' ? `<span class="badge type-exam">Quiz/Exam</span>` : '';
@@ -431,8 +453,9 @@ function renderDayDetail() {
     const status = classify(a, now);
     const badgeCls = statusBadgeClass(status);
     const borderCls = status === 'later' ? '' : badgeCls;
-    const nameContent = a.url
-      ? `<a href="${a.url}" target="_blank" rel="noopener">${escapeHtml(a.name)}</a>`
+    const url = safeUrl(a.url);
+    const nameContent = url
+      ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(a.name)}</a>`
       : escapeHtml(a.name);
     return `
       <div class="reminder-item ${borderCls}">
@@ -491,8 +514,9 @@ function renderTable() {
       const status = classify(a, now);
       const statusLabel = STATUS_LABELS[status];
       const statusCls = statusBadgeClass(status);
-      const nameContent = a.url
-        ? `<a href="${a.url}" target="_blank" rel="noopener">${escapeHtml(a.name)}</a>`
+      const url = safeUrl(a.url);
+      const nameContent = url
+        ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(a.name)}</a>`
         : escapeHtml(a.name);
       const typeTag = a.type === 'exam' ? `<span class="badge type-exam">Quiz/Exam</span> ` : '';
       return `
@@ -877,7 +901,7 @@ document.addEventListener('DOMContentLoaded', () => {
       name: document.getElementById('fName').value.trim(),
       course: document.getElementById('fCourse').value,
       type: document.getElementById('fType').value,
-      points: Number(document.getElementById('fPoints').value) || 0,
+      points: Math.max(0, Number(document.getElementById('fPoints').value) || 0),
       dueDate: document.getElementById('fDate').value,
       dueTime: document.getElementById('fTime').value,
     };
@@ -888,7 +912,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (idx !== -1) assignments[idx] = { ...assignments[idx], ...data };
       showToast('Assignment updated');
     } else {
-      data.id = 'user-' + Date.now();
+      data.id = 'user-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
       data.url = '';
       assignments.push(data);
       showToast('Assignment added');
@@ -906,11 +930,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   renderAll();
 
-  if ('Notification' in window && Notification.permission === 'default') {
-    Notification.requestPermission().then(() => checkReminderPopups(false));
-  } else {
-    checkReminderPopups(false);
-  }
+  // Only ask for notification permission from an explicit click on the bell
+  // button (requestNotifications) - browsers flag/block permission prompts
+  // fired on page load with no user gesture behind them. The in-page
+  // reminder modal below doesn't need permission at all; the native OS
+  // notification inside checkReminderPopups is skipped until it's granted.
+  checkReminderPopups(false);
 
   // Re-check due/overdue status and reminder popups periodically without a full reload
   setInterval(() => {
